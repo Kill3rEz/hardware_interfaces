@@ -39,6 +39,7 @@ namespace aidl::android::hardware::audio::effect {
 Factory::Factory(const std::string& file) : mConfig(EffectConfig(file)) {
     LOG(DEBUG) << __func__ << " with config file: " << file;
     loadEffectLibs();
+    loadHardcodedEffects();
 }
 
 Factory::~Factory() {
@@ -294,6 +295,52 @@ void Factory::getDlSyms_l(DlEntry& entry) {
                    << ") not exist in library: " << std::get<kMapEntryLibNameIndex>(entry)
                    << " handle: " << dlHandle << " with dlerror: " << dlerror();
         return;
+    }
+}
+
+void Factory::loadHardcodedEffects() {
+    struct HardcodedEffect {
+        const char* name;
+        const char* paths[2];
+        const AudioUuid& (*typeUuid)();
+        const AudioUuid& (*implUuid)();
+    };
+
+    static const HardcodedEffect kHardcodedEffects[] = {
+        {"ViPER",
+         {"/vendor/lib64/soundfx/libviperaidl.so", "/vendor/lib/soundfx/libviperaidl.so"},
+         getEffectTypeUuidViper, getEffectImplUuidViper},
+        {"AxionFx",
+         {"/vendor/lib64/soundfx/libaxionfxaidl.so", "/vendor/lib/soundfx/libaxionfxaidl.so"},
+         getEffectTypeUuidAxionFx, getEffectImplUuidAxionFx},
+        {"DolbyDap",
+         {"/vendor/lib64/soundfx/libswdapaidl.so", "/vendor/lib/soundfx/libswdapaidl.so"},
+         getEffectTypeUuidDolbyDap, getEffectImplUuidDolbyDap},
+    };
+
+    for (const auto& effect : kHardcodedEffects) {
+        bool found = false;
+        for (const char* libPath : effect.paths) {
+            if (access(libPath, R_OK) != 0) {
+                continue;
+            }
+
+            Descriptor::Identity id;
+            id.type = effect.typeUuid();
+            id.uuid = effect.implUuid();
+            id.proxy = std::nullopt;
+
+            LOG(INFO) << __func__ << " loading hardcoded " << effect.name << " effect from "
+                      << libPath;
+            if (openEffectLibrary(id.uuid, libPath)) {
+                mIdentitySet.insert(std::move(id));
+            }
+            found = true;
+            break;
+        }
+        if (!found) {
+            LOG(DEBUG) << __func__ << " " << effect.name << " library not found, skipping";
+        }
     }
 }
 
