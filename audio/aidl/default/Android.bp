@@ -391,6 +391,17 @@ cc_defaults {
     ],
 }
 
+// Legacy filegroup name expected by out-of-tree effect ports (e.g. the
+// OnePlus Dolby DAP AIDL adapter). Same sources as libaudioeffectaidlcommon.
+filegroup {
+    name: "effectCommonFile",
+    srcs: [
+        "EffectContext.cpp",
+        "EffectImpl.cpp",
+        "EffectThread.cpp",
+    ],
+}
+
 cc_library_static {
     name: "libaudioeffectaidlcommon",
     srcs: [
